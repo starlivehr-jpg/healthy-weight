@@ -1,0 +1,19 @@
+const WORKER_URL = "https://spring-shadow-65fe.starlivehr.workers.dev"; // ใส่ URL Worker ของคุณ
+
+// ตัวอย่างฟังก์ชัน Login
+function loginUserAPI(empId, password) {
+  fetch(WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "login", empId, password })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (res.success) {
+      currentUser = res.user;
+      renderDashboard(res);
+    } else {
+      showStatus(res.message, false);
+    }
+  });
+}
