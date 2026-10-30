@@ -1,19 +1,431 @@
-const WORKER_URL = "https://spring-shadow-65fe.starlivehr.workers.dev"; // ใส่ URL Worker ของคุณ
-
-// ตัวอย่างฟังก์ชัน Login
-function loginUserAPI(empId, password) {
-  fetch(WORKER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "login", empId, password })
-  })
-  .then(res => res.json())
-  .then(res => {
-    if (res.success) {
-      currentUser = res.user;
-      renderDashboard(res);
-    } else {
-      showStatus(res.message, false);
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://spring-shadow-65fe.starlivehr.workers.dev" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Prompt', sans-serif; }
+    html, body { height: 100%; margin: 0; padding: 0; background-color: #f4f7f6; color: #333; }
+    .wrapper { min-height: 100%; display: flex; flex-direction: column; }
+    .content { flex: 1 0 auto; padding: 20px 15px 80px 15px; }
+    .container { max-width: 500px; margin: 0 auto; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+    
+    h2 { text-align: center; color: #2e7d32; margin: 0 0 5px 0; }
+    p.subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 20px; }
+    
+    /* Navigation Tabs */
+    .nav-tabs { display: flex; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 10px; text-align: center; background: none; border: none; font-weight: 500; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab-btn.active { color: #2e7d32; border-bottom-color: #2e7d32; font-weight: 600; }
+    
+    /* Form Styles */
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-weight: 500; margin-bottom: 6px; color: #444; }
+    input[type="text"], input[type="password"], input[type="number"], textarea, input[type="file"] {
+      width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; outline: none;
     }
-  });
-}
+    input:focus, textarea:focus { border-color: #2e7d32; }
+    
+    .btn-primary { width: 100%; background-color: #2e7d32; color: white; border: none; padding: 14px; font-size: 16px; font-weight: 600; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+    .btn-primary:hover { background-color: #1b5e20; }
+    .btn-primary:disabled { background-color: #a5d6a7; cursor: not-allowed; }
+    .btn-secondary { background-color: #757575; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; float: right; font-size: 12px; }
+    
+    /* Status Box */
+    .status-box { margin-top: 15px; padding: 10px; border-radius: 6px; text-align: center; font-size: 14px; display: none; }
+    .success { background-color: #e8f5e9; color: #2e7d32; }
+    .error { background-color: #ffebee; color: #c62828; }
+    
+    /* User Dashboard */
+    .user-header { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: #f9f9f9; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #eee; }
+    .stat-value { font-size: 20px; font-weight: 600; color: #2e7d32; }
+    .stat-label { font-size: 12px; color: #666; }
+    
+    /* Rules & Terms Card */
+    .rules-card { background: #fafafa; border-left: 4px solid #2e7d32; padding: 12px 15px; margin-bottom: 12px; font-size: 14px; }
+    .rules-card h4 { margin: 0 0 5px 0; color: #2e7d32; }
+    .rules-card ul { margin: 5px 0; padding-left: 20px; }
+    .rules-card p { margin: 5px 0; }
+    
+    /* History Table */
+    .history-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+    .history-table th, .history-table td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
+    .history-table th { background: #f5f5f5; color: #555; }
+    
+    /* Footer */
+    footer { flex-shrink: 0; position: fixed; bottom: 0; left: 0; width: 100%; background-color: #ffffff; border-top: 1px solid #e0e0e0; padding: 12px 10px; text-align: center; font-size: 13px; color: #666; box-shadow: 0 -2px 10px rgba(0,0,0,0.03); z-index: 100; }
+    footer a { color: #06c755; font-weight: 600; text-decoration: none; }
+    @media print { .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="content">
+      <div class="container">
+        <h2>🏋️‍♂️ Healthy Weight, Healthy Life</h2>
+        <p class="subtitle">โครงการน้ำหนักลด ได้สุขภาพ แถมได้รางวัล</p>
+
+        <!-- 1. AUTH SECTION (ก่อนเข้าสู่ระบบ) -->
+        <div id="authSection">
+          <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchAuthTab('login')">เข้าสู่ระบบ</button>
+            <button class="tab-btn" onclick="switchAuthTab('register')">ลงทะเบียนครั้งแรก</button>
+            <button class="tab-btn" onclick="switchAuthTab('terms')">เงื่อนไขโครงการ</button>
+          </div>
+
+          <!-- Form เข้าสู่ระบบ -->
+          <form id="loginForm">
+            <div class="form-group">
+              <label>รหัสพนักงาน *</label>
+              <input type="text" id="loginEmpId" placeholder="เช่น ST68037" required>
+            </div>
+            <div class="form-group">
+              <label>รหัสผ่าน *</label>
+              <input type="password" id="loginPassword" placeholder="รหัสผ่านที่คุณตั้งไว้" required>
+            </div>
+            <button type="submit" class="btn-primary" id="loginBtn">เข้าสู่ระบบ</button>
+          </form>
+
+          <!-- Form ลงทะเบียนครั้งแรก -->
+          <form id="registerForm" style="display: none;">
+            <div class="form-group">
+              <label>รหัสพนักงาน *</label>
+              <input type="text" id="regEmpId" placeholder="เช่น ST68037" required>
+            </div>
+            <div class="form-group">
+              <label>ชื่อเล่น *</label>
+              <input type="text" id="regNickname" placeholder="เช่น แม็ค" required>
+            </div>
+            <div class="form-group">
+              <label>ตั้งรหัสผ่านใหม่ *</label>
+              <input type="password" id="regPassword" placeholder="อย่างน้อย 4 ตัวอักษร" required>
+            </div>
+            <button type="submit" class="btn-primary" id="regBtn">ยืนยันลงทะเบียน</button>
+          </form>
+
+          <!-- Tab เงื่อนไขโครงการ (ก่อนเข้าสู่ระบบ) -->
+          <div id="termsTabAuth" style="display: none;">
+            <div class="terms-content"></div>
+          </div>
+        </div>
+
+        <!-- 2. MAIN DASHBOARD (หลังเข้าสู่ระบบสำเร็จ) -->
+        <div id="mainDashboard" style="display: none;">
+          <div class="user-header">
+            <button class="btn-secondary" onclick="logout()">ออกจากระบบ</button>
+            <span style="font-weight: 600; color: #2e7d32;" id="userWelcome">สวัสดีครับ</span>
+            <div style="font-size: 12px; color: #666; margin-top: 4px;" id="userInfo"></div>
+          </div>
+
+          <!-- แท็บเมนูในแดชบอร์ด -->
+          <div class="nav-tabs">
+            <button class="tab-btn active" id="dashLogTabBtn" onclick="switchDashTab('log')">⚖️ บันทึกน้ำหนัก</button>
+            <button class="tab-btn" id="dashTermsTabBtn" onclick="switchDashTab('terms')">📜 เงื่อนไขโครงการ</button>
+          </div>
+
+          <!-- แดชบอร์ด แท็บ 1: บันทึกน้ำหนักและดูประวัติ -->
+          <div id="dashLogSection">
+            <div class="stat-grid">
+              <div class="stat-card">
+                <div class="stat-value" id="statStartWeight">-</div>
+                <div class="stat-label">น้ำหนักเริ่มต้น (กก.)</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value" id="statLatestWeight">-</div>
+                <div class="stat-label">น้ำหนักล่าสุด (กก.)</div>
+              </div>
+              <div class="stat-card" style="grid-column: span 2; background: #e8f5e9;">
+                <div class="stat-value" style="font-size: 24px;" id="statWeightLost">0.0</div>
+                <div class="stat-label"><strong>รวมน้ำหนักที่ลดได้ (กิโลกรัม)</strong></div>
+              </div>
+            </div>
+
+            <!-- ฟอร์มบันทึกน้ำหนักประจำสัปดาห์ -->
+            <form id="weightForm">
+              <h4 style="margin: 0 0 10px 0; color: #2e7d32;">⚖️ บันทึกน้ำหนักสัปดาห์นี้</h4>
+              <div class="form-group">
+                <label>น้ำหนักปัจจุบัน (กก.) *</label>
+                <input type="number" id="weight" step="0.1" min="30" max="200" placeholder="เช่น 65.5" required>
+              </div>
+              <div class="form-group">
+                <label>ถ่ายรูป/แนบรูปหน้าจอเครื่องชั่ง *</label>
+                <input type="file" id="photoFile" accept="image/*" capture="environment" required>
+              </div>
+              <div class="form-group">
+                <label>บันทึกเพิ่มเติม (ถ้ามี)</label>
+                <textarea id="note" rows="2" placeholder="เช่น สัปดาห์นี้เน้นเดินสลับวิ่ง"></textarea>
+              </div>
+              <button type="submit" class="btn-primary" id="submitWeightBtn">ส่งผลบันทึกน้ำหนัก</button>
+            </form>
+
+            <h4 style="margin: 25px 0 10px 0; color: #444;">📜 ประวัติการบันทึกย้อนหลัง</h4>
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>วันที่</th>
+                  <th>น้ำหนัก</th>
+                  <th>หลักฐาน</th>
+                  <th>หมายเหตุ</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
+
+          <!-- แดชบอร์ด แท็บ 2: เงื่อนไขโครงการ (หลังเข้าสู่ระบบ) -->
+          <div id="dashTermsSection" style="display: none;">
+            <div class="terms-content"></div>
+          </div>
+        </div>
+
+        <div id="status" class="status-box"></div>
+      </div>
+    </div>
+
+    <!-- HTML Template สำหรับรายละเอียดเงื่อนไขโครงการ -->
+    <template id="termsTemplate">
+      <div class="rules-card">
+        <h4>🎯 อัตราเงินรางวัลสะสม (คิดเมื่อครบ 3 เดือน)</h4>
+        <ul>
+          <li><strong>ลดได้ 1.0 - 2.9 กก.:</strong> ได้กิโลละ 500 บาท</li>
+          <li><strong>ลดได้ 3.0 - 5.9 กก.:</strong> ได้กิโลละ 750 บาท</li>
+          <li><strong>ลดได้ 6.0 กก. ขึ้นไป:</strong> ได้กิโลละ 1,000 บาท</li>
+        </ul>
+      </div>
+      <div class="rules-card">
+        <h4>🛡️ ข้อกำหนดความปลอดภัยสุขภาพ</h4>
+        <p>อัตราการลดน้ำหนักที่ปลอดภัยต้องไม่เกิน <strong>1.0 กิโลกรัม / สัปดาห์</strong> (สูงสุดคิดคำนวณไม่เกิน 12 กก. ตลอดโครงการ) เพื่อป้องกันการอดอาหารหักโหม</p>
+      </div>
+      <div class="rules-card">
+        <h4>📸 เกณฑ์การส่งรูปถ่ายยืนยัน</h4>
+        <p>ถ่ายรูปหน้าจอเครื่องชั่งดิจิทัลให้เห็นตัวเลขชัดเจน สัปดาห์ละ 1 ครั้ง โดยต้องเป็นเครื่องชั่งมาตรฐานเครื่องเดียวกันทุกสัปดาห์ ต่อหน้ากรรมการ</p>
+      </div>
+    </template>
+
+    <!-- Footer ตรึงล่างตลอดเวลา -->
+    <footer class="no-print">
+      &copy; 2026 Mac Soft - ระบบบันทึกน้ำหนักพนักงาน (V1.0) | ติดต่อผู้พัฒนา LINE ID: 
+      <a href="https://line.me/ti/p/~dj_nodoubt" target="_blank" rel="noopener noreferrer">dj_nodoubt</a>
+    </footer>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let currentPassword = '';
+
+    // โหลดเงื่อนไขโครงการใส่กล่องแสดงผลเมื่อเปิดหน้าเว็บ
+    window.onload = function() {
+      const template = document.getElementById('termsTemplate').content.cloneNode(true);
+      const template2 = document.getElementById('termsTemplate').content.cloneNode(true);
+      document.querySelectorAll('.terms-content')[0].appendChild(template);
+      document.querySelectorAll('.terms-content')[1].appendChild(template2);
+    };
+
+    // สลับแท็บหน้า AUTH (ก่อนเข้าสู่ระบบ)
+    function switchAuthTab(tabName) {
+      document.querySelectorAll('#authSection .tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('registerForm').style.display = 'none';
+      document.getElementById('termsTabAuth').style.display = 'none';
+      hideStatus();
+
+      if (tabName === 'login') {
+        document.querySelectorAll('#authSection .tab-btn')[0].classList.add('active');
+        document.getElementById('loginForm').style.display = 'block';
+      } else if (tabName === 'register') {
+        document.querySelectorAll('#authSection .tab-btn')[1].classList.add('active');
+        document.getElementById('registerForm').style.display = 'block';
+      } else if (tabName === 'terms') {
+        document.querySelectorAll('#authSection .tab-btn')[2].classList.add('active');
+        document.getElementById('termsTabAuth').style.display = 'block';
+      }
+    }
+
+    // สลับแท็บหน้า DASHBOARD (หลังเข้าสู่ระบบ)
+    function switchDashTab(tabName) {
+      document.getElementById('dashLogTabBtn').classList.remove('active');
+      document.getElementById('dashTermsTabBtn').classList.remove('active');
+      document.getElementById('dashLogSection').style.display = 'none';
+      document.getElementById('dashTermsSection').style.display = 'none';
+
+      if (tabName === 'log') {
+        document.getElementById('dashLogTabBtn').classList.add('active');
+        document.getElementById('dashLogSection').style.display = 'block';
+      } else if (tabName === 'terms') {
+        document.getElementById('dashTermsTabBtn').classList.add('active');
+        document.getElementById('dashTermsSection').style.display = 'block';
+      }
+    }
+
+    function showStatus(msg, isSuccess) {
+      const statusDiv = document.getElementById('status');
+      statusDiv.style.display = 'block';
+      statusDiv.className = 'status-box ' + (isSuccess ? 'success' : 'error');
+      statusDiv.innerText = msg;
+    }
+
+    function hideStatus() {
+      document.getElementById('status').style.display = 'none';
+    }
+
+    // 1. เข้าสู่ระบบ
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const empId = document.getElementById('loginEmpId').value;
+      const pass = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('loginBtn');
+
+      btn.disabled = true;
+      btn.innerText = 'กำลังเข้าสู่ระบบ...';
+      hideStatus();
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerText = 'เข้าสู่ระบบ';
+          if (res.success) {
+            currentUser = res.user;
+            currentPassword = pass;
+            renderDashboard(res);
+          } else {
+            showStatus(res.message, false);
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerText = 'เข้าสู่ระบบ';
+          showStatus('เชื่อมต่อล้มเหลว: ' + err.message, false);
+        })
+        .loginUser(empId, pass);
+    });
+
+    // 2. ลงทะเบียนครั้งแรก
+    document.getElementById('registerForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const data = {
+        empId: document.getElementById('regEmpId').value,
+        nickname: document.getElementById('regNickname').value,
+        password: document.getElementById('regPassword').value
+      };
+      const btn = document.getElementById('regBtn');
+
+      btn.disabled = true;
+      btn.innerText = 'กำลังลงทะเบียน...';
+      hideStatus();
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerText = 'ยืนยันลงทะเบียน';
+          showStatus(res.message, res.success);
+          if (res.success) {
+            document.getElementById('registerForm').reset();
+            setTimeout(() => switchAuthTab('login'), 2000);
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerText = 'ยืนยันลงทะเบียน';
+          showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
+        })
+        .registerUser(data);
+    });
+
+    // 3. บันทึกน้ำหนัก
+    document.getElementById('weightForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submitWeightBtn');
+      const fileInput = document.getElementById('photoFile');
+      const file = fileInput.files[0];
+
+      if (!file) {
+        showStatus('กรุณาเลือกหรือถ่ายรูปภาพก่อนส่งข้อมูล', false);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'กำลังอัปโหลดข้อมูล...';
+      hideStatus();
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const formObj = {
+          empId: currentUser.empId,
+          weight: document.getElementById('weight').value,
+          fileData: evt.target.result,
+          fileName: `LOG_${currentUser.empId}_${Date.now()}.${file.name.split('.').pop()}`,
+          note: document.getElementById('note').value
+        };
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            btn.disabled = false;
+            btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
+            showStatus(res.message, res.success);
+            if (res.success) {
+              document.getElementById('weightForm').reset();
+              google.script.run.withSuccessHandler(renderDashboard).loginUser(currentUser.empId, currentPassword);
+            }
+          })
+          .withFailureHandler(function(err) {
+            btn.disabled = false;
+            btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
+            showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
+          })
+          .submitWeightLog(formObj);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function renderDashboard(res) {
+      document.getElementById('authSection').style.display = 'none';
+      document.getElementById('mainDashboard').style.display = 'block';
+
+      // Default ให้เปิดแท็บ "บันทึกน้ำหนัก" เสมอเมื่อเข้าสู่ระบบ
+      switchDashTab('log');
+
+      document.getElementById('userWelcome').innerText = 'ยินดีต้อนรับ คุณ' + res.user.nickname;
+      document.getElementById('userInfo').innerText = `รหัส: ${res.user.empId} | แผนก: ${res.user.department}`;
+      document.getElementById('statStartWeight').innerText = res.user.startWeight !== '-' ? res.user.startWeight : 'รอชั่งครั้งแรก';
+      document.getElementById('statLatestWeight').innerText = res.latestWeight !== '-' ? res.latestWeight : 'รอชั่งครั้งแรก';
+      
+      const diff = parseFloat(res.weightLost);
+      if (!isNaN(diff) && res.user.startWeight !== '-') {
+        document.getElementById('statWeightLost').innerText = (diff > 0 ? '-' : '+') + Math.abs(diff) + ' กก.';
+      } else {
+        document.getElementById('statWeightLost').innerText = '0.0 กก.';
+      }
+
+      const tbody = document.getElementById('historyBody');
+      tbody.innerHTML = '';
+      if (res.logs && res.logs.length > 0) {
+        res.logs.forEach(log => {
+          const photoLink = log.photoUrl ? `<a href="${log.photoUrl}" target="_blank">ดูรูปหลักฐาน</a>` : '-';
+          tbody.innerHTML += `
+            <tr>
+              <td>${log.date}</td>
+              <td><strong>${log.weight} กก.</strong></td>
+              <td>${photoLink}</td>
+              <td>${log.note || '-'}</td>
+            </tr>
+          `;
+        });
+      } else {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#999;">ยังไม่มีประวัติการบันทึก</td></tr>';
+      }
+    }
+
+    function logout() {
+      currentUser = null;
+      currentPassword = '';
+      document.getElementById('mainDashboard').style.display = 'none';
+      document.getElementById('authSection').style.display = 'block';
+      document.getElementById('loginForm').reset();
+      switchAuthTab('login');
+      hideStatus();
+    }
+  </script>
+</body>
+</html>
