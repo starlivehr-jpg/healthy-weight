@@ -61,24 +61,35 @@ export default {
       if (action === "register") {
         const empId = String(body.empId || "").trim().toUpperCase();
         const nickname = String(body.nickname || "").trim();
+        const department = String(body.department || "").trim();
         const password = String(body.password || "");
-        if (!empId || !nickname || password.length < 4 || password.length > 128)
-          return json({success:false,message:"กรุณากรอกข้อมูลให้ครบ และตั้งรหัสผ่านอย่างน้อย 4 ตัวอักษร"},400,headers);
+        const heightCm = Number(body.heightCm);
+        const startWeight = Number(body.startWeight);
+        const targetWeightKg = Number(body.targetWeightKg);
+        if (!empId || !nickname || !department || password.length < 4 || password.length > 128 ||
+            !Number.isFinite(heightCm) || !Number.isFinite(startWeight) || !Number.isFinite(targetWeightKg))
+          return json({success:false,message:"กรุณากรอกข้อมูลให้ครบทุกช่อง และตั้งรหัสผ่านอย่างน้อย 4 ตัวอักษร"},400,headers);
         if (!/^[A-Z0-9-]{3,20}$/.test(empId))
           return json({success:false,message:"รูปแบบรหัสพนักงานไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง"},400,headers);
+        if (heightCm < 100 || heightCm > 250)
+          return json({success:false,message:"ส่วนสูงต้องอยู่ระหว่าง 100–250 เซนติเมตร"},400,headers);
+        if (startWeight < 30 || startWeight > 200 || targetWeightKg < 30 || targetWeightKg > 200)
+          return json({success:false,message:"น้ำหนักเริ่มต้นและน้ำหนักเป้าหมายต้องอยู่ระหว่าง 30–200 กิโลกรัม"},400,headers);
+        if (department.length > 80 || nickname.length > 60)
+          return json({success:false,message:"ชื่อเล่นหรือแผนกยาวเกินกำหนด"},400,headers);
         const user = await env.DB.prepare("SELECT emp_id,password FROM employees WHERE emp_id = ?").bind(empId).first();
         if (user?.password && user.password.trim() !== "")
           return json({success:false,message:"รหัสพนักงานนี้มีบัญชีใช้งานแล้ว กรุณาเข้าสู่ระบบ"},200,headers);
         const passwordHash = await hashPassword(password);
         if (user) {
-          await env.DB.prepare("UPDATE employees SET password = ?, nickname = ? WHERE emp_id = ?")
-            .bind(passwordHash,nickname,empId).run();
+          await env.DB.prepare("UPDATE employees SET password = ?, nickname = ?, name_th = ?, department = ?, height_cm = ?, start_weight = ?, target_weight_kg = ? WHERE emp_id = ?")
+            .bind(passwordHash,nickname,nickname,department,heightCm,startWeight,targetWeightKg,empId).run();
         } else {
-          // Self-service registration: create the employee profile immediately; no HR approval queue.
-          await env.DB.prepare("INSERT INTO employees (emp_id,password,nickname,name_th,department) VALUES (?,?,?,?,?)")
-            .bind(empId,passwordHash,nickname,nickname,"ไม่ระบุ").run();
+          // Self-service registration creates a complete employee profile immediately.
+          await env.DB.prepare("INSERT INTO employees (emp_id,password,nickname,name_th,department,height_cm,start_weight,target_weight_kg) VALUES (?,?,?,?,?,?,?,?)")
+            .bind(empId,passwordHash,nickname,nickname,department,heightCm,startWeight,targetWeightKg).run();
         }
-        return json({success:true,message:"ลงทะเบียนสำเร็จ! บัญชีพร้อมใช้งานแล้ว สามารถเข้าสู่ระบบได้ทันที"},200,headers);
+        return json({success:true,message:"ลงทะเบียนสำเร็จ! บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว สามารถเข้าสู่ระบบได้ทันที"},200,headers);
       }
       if (action === "requestPasswordReset") {
         const empId = String(body.empId || "").trim().toUpperCase();
