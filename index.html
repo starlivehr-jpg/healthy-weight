@@ -150,6 +150,25 @@
               <input type="text" id="regNickname" placeholder="เช่น แม็ค" required>
             </div>
             <div class="form-group">
+              <label>แผนกสังกัด *</label>
+              <input type="text" id="regDepartment" placeholder="เช่น HR, AMD, IT, Marketing" maxlength="80" required>
+            </div>
+            <div class="form-group">
+              <label>ส่วนสูง (เซนติเมตร) *</label>
+              <input type="number" id="regHeight" min="100" max="250" step="0.1" placeholder="เช่น 170" required>
+            </div>
+            <div class="form-group">
+              <label>น้ำหนักเริ่มต้น (กิโลกรัม) *</label>
+              <input type="number" id="regStartWeight" min="30" max="200" step="0.1" placeholder="เช่น 74" required>
+            </div>
+            <div class="form-group">
+              <label>น้ำหนักเป้าหมาย (กิโลกรัม) *</label>
+              <input type="number" id="regTargetWeight" min="30" max="200" step="0.1" placeholder="เช่น 65" required>
+            </div>
+            <div class="form-group">
+              <label>ตั้งรหัสผ่านใหม่ *</label>
+            </div>
+            <div class="form-group">
               <label>ตั้งรหัสผ่านใหม่ *</label>
               <div class="password-wrap"><input type="password" id="regPassword" placeholder="อย่างน้อย 4 ตัวอักษร" required autocomplete="new-password"><button class="password-toggle" type="button" onclick="togglePassword('regPassword',this)">แสดง</button></div>
             </div>
@@ -400,6 +419,10 @@
       const data = {
         empId: document.getElementById('regEmpId').value,
         nickname: document.getElementById('regNickname').value,
+        department: document.getElementById('regDepartment').value,
+        heightCm: document.getElementById('regHeight').value,
+        startWeight: document.getElementById('regStartWeight').value,
+        targetWeightKg: document.getElementById('regTargetWeight').value,
         password: document.getElementById('regPassword').value
       };
       const btn = document.getElementById('regBtn');
