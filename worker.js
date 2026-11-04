@@ -80,6 +80,25 @@ export default {
         }
         return json({success:true,message:"ลงทะเบียนสำเร็จ! บัญชีพร้อมใช้งานแล้ว สามารถเข้าสู่ระบบได้ทันที"},200,headers);
       }
+      if (action === "requestPasswordReset") {
+        const empId = String(body.empId || "").trim().toUpperCase();
+        const nickname = String(body.nickname || "").trim();
+        if (!empId || !nickname)
+          return json({success:false,message:"กรุณากรอกรหัสพนักงานและชื่อเล่น"},400,headers);
+        if (!/^[A-Z0-9-]{3,20}$/.test(empId))
+          return json({success:false,message:"รูปแบบรหัสพนักงานไม่ถูกต้อง"},400,headers);
+        const user = await env.DB.prepare("SELECT emp_id,nickname,name_th FROM employees WHERE emp_id = ?").bind(empId).first();
+        // Use a generic response to avoid revealing whether an employee ID exists.
+        if (user && [user.nickname,user.name_th].filter(Boolean).some(v => String(v).trim().toLocaleLowerCase("th") === nickname.toLocaleLowerCase("th"))) {
+          const pending = await env.DB.prepare("SELECT request_id FROM password_reset_requests WHERE emp_id = ? AND status = 'pending' LIMIT 1").bind(empId).first();
+          if (!pending) {
+            const requestId = "RST" + crypto.randomUUID().replace(/-/g,"");
+            await env.DB.prepare("INSERT INTO password_reset_requests (request_id,emp_id,nickname,requested_at,status) VALUES (?,?,?,?,?)")
+              .bind(requestId,empId,nickname,new Date().toISOString(),"pending").run();
+          }
+        }
+        return json({success:true,message:"รับคำขอแล้ว หากข้อมูลตรงกับทะเบียนพนักงาน HR จะตรวจสอบและดำเนินการรีเซ็ตรหัสผ่านให้ กรุณาติดต่อ HR หากต้องการเร่งด่วน"},200,headers);
+      }
       if (action === "login") {
         const empId = String(body.empId || "").trim().toUpperCase();
         const password = String(body.password || "");
