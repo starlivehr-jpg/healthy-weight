@@ -271,6 +271,21 @@
       document.getElementById('status').style.display = 'none';
     }
 
+    const WORKER_API_URL = 'https://spring-shadow-65fe.starlivehr.workers.dev/api';
+
+    async function postWorkerRequest(endpoint, payload) {
+      const response = await fetch(`${WORKER_API_URL}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || `HTTP ${response.status}`);
+      }
+      return result;
+    }
+
     // 1. เข้าสู่ระบบ
     document.getElementById('loginForm').addEventListener('submit', function(e) {
       e.preventDefault();
@@ -282,8 +297,8 @@
       btn.innerText = 'กำลังเข้าสู่ระบบ...';
       hideStatus();
 
-      google.script.run
-        .withSuccessHandler(function(res) {
+      postWorkerRequest('login', { empId, password: pass })
+        .then(function(res) {
           btn.disabled = false;
           btn.innerText = 'เข้าสู่ระบบ';
           if (res.success) {
@@ -294,12 +309,11 @@
             showStatus(res.message, false);
           }
         })
-        .withFailureHandler(function(err) {
+        .catch(function(err) {
           btn.disabled = false;
           btn.innerText = 'เข้าสู่ระบบ';
           showStatus('เชื่อมต่อล้มเหลว: ' + err.message, false);
-        })
-        .loginUser(empId, pass);
+        });
     });
 
     // 2. ลงทะเบียนครั้งแรก
@@ -316,8 +330,8 @@
       btn.innerText = 'กำลังลงทะเบียน...';
       hideStatus();
 
-      google.script.run
-        .withSuccessHandler(function(res) {
+      postWorkerRequest('register', data)
+        .then(function(res) {
           btn.disabled = false;
           btn.innerText = 'ยืนยันลงทะเบียน';
           showStatus(res.message, res.success);
@@ -326,12 +340,11 @@
             setTimeout(() => switchAuthTab('login'), 2000);
           }
         })
-        .withFailureHandler(function(err) {
+        .catch(function(err) {
           btn.disabled = false;
           btn.innerText = 'ยืนยันลงทะเบียน';
           showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
-        })
-        .registerUser(data);
+        });
     });
 
     // 3. บันทึกน้ำหนัก
@@ -360,22 +373,25 @@
           note: document.getElementById('note').value
         };
 
-        google.script.run
-          .withSuccessHandler(function(res) {
+        postWorkerRequest('submit-weight', formObj)
+          .then(function(res) {
             btn.disabled = false;
             btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
             showStatus(res.message, res.success);
             if (res.success) {
               document.getElementById('weightForm').reset();
-              google.script.run.withSuccessHandler(renderDashboard).loginUser(currentUser.empId, currentPassword);
+              postWorkerRequest('login', { empId: currentUser.empId, password: currentPassword })
+                .then(renderDashboard)
+                .catch(function(err) {
+                  showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
+                });
             }
           })
-          .withFailureHandler(function(err) {
+          .catch(function(err) {
             btn.disabled = false;
             btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
             showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
-          })
-          .submitWeightLog(formObj);
+          });
       };
       reader.readAsDataURL(file);
     });
