@@ -400,7 +400,7 @@
         const formObj = {
           empId: currentUser.empId,
           weight: document.getElementById('weight').value,
-          photoUrl: evt.target.result,
+          photoUrl: compressedImage,
           fileName: `LOG_${currentUser.empId}_${Date.now()}.${file.name.split('.').pop()}`,
           note: document.getElementById('note').value
         };
