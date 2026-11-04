@@ -273,8 +273,8 @@
 
     const WORKER_API_URL = 'https://spring-shadow-65fe.starlivehr.workers.dev/api';
 
-    async function postWorkerRequest(endpoint, payload) {
-      const response = await fetch(`${WORKER_API_URL}/${endpoint}`, {
+    async function postWorkerRequest(payload) {
+      const response = await fetch(WORKER_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -297,7 +297,7 @@
       btn.innerText = 'กำลังเข้าสู่ระบบ...';
       hideStatus();
 
-      postWorkerRequest('login', { empId, password: pass })
+      postWorkerRequest({ action: 'login', empId, password: pass })
         .then(function(res) {
           btn.disabled = false;
           btn.innerText = 'เข้าสู่ระบบ';
@@ -330,7 +330,7 @@
       btn.innerText = 'กำลังลงทะเบียน...';
       hideStatus();
 
-      postWorkerRequest('register', data)
+      postWorkerRequest({ ...data, action: 'register' })
         .then(function(res) {
           btn.disabled = false;
           btn.innerText = 'ยืนยันลงทะเบียน';
@@ -373,14 +373,14 @@
           note: document.getElementById('note').value
         };
 
-        postWorkerRequest('submit-weight', formObj)
+        postWorkerRequest({ ...formObj, action: 'submitWeight' })
           .then(function(res) {
             btn.disabled = false;
             btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
             showStatus(res.message, res.success);
             if (res.success) {
               document.getElementById('weightForm').reset();
-              postWorkerRequest('login', { empId: currentUser.empId, password: currentPassword })
+              postWorkerRequest({ action: 'login', empId: currentUser.empId, password: currentPassword })
                 .then(renderDashboard)
                 .catch(function(err) {
                   showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
