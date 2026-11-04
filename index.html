@@ -32,6 +32,12 @@
     .tab-btn { flex:1; min-width:120px; padding:12px 18px; border:0; border-radius:999px; background:transparent; color:var(--md-secondary); font-size:14px; font-weight:500; cursor:pointer; transition:background .2s,color .2s,box-shadow .2s; }
     .tab-btn.active { background:var(--md-primary-container); color:var(--md-on-primary-container); font-weight:600; box-shadow:0 2px 8px rgba(20,55,5,.08); }
     .form-group { margin-bottom:18px; }
+    .password-wrap { position:relative; }
+    .password-wrap input { padding-right:88px!important; }
+    .password-toggle { position:absolute; top:50%; right:10px; transform:translateY(-50%); border:0; border-radius:999px; padding:7px 12px; background:#e6eddf; color:#31591f; font-size:12px; font-weight:600; cursor:pointer; }
+    .text-action { display:inline-block; margin-top:12px; padding:4px 0; border:0; background:transparent; color:#386a20; font-size:13px; font-weight:600; text-decoration:underline; cursor:pointer; }
+    .reset-panel { margin-top:16px; padding:18px; border:1px solid var(--md-outline-soft); border-radius:18px; background:#f5f8ef; }
+    .helper-text { color:var(--md-secondary); font-size:12px; line-height:1.6; margin:4px 0 12px; }
     label { display:block; margin-bottom:8px; color:#343a30; font-size:14px; font-weight:500; }
     input[type="text"],input[type="password"],input[type="number"],textarea,input[type="file"] {
       display:block; width:100%; min-height:52px; padding:13px 16px; border:1px solid var(--md-outline-soft);
@@ -119,9 +125,18 @@
             </div>
             <div class="form-group">
               <label>รหัสผ่าน *</label>
-              <input type="password" id="loginPassword" placeholder="รหัสผ่านที่คุณตั้งไว้" required>
+              <div class="password-wrap"><input type="password" id="loginPassword" placeholder="รหัสผ่านที่คุณตั้งไว้" required autocomplete="current-password"><button class="password-toggle" type="button" onclick="togglePassword('loginPassword',this)">แสดง</button></div>
             </div>
             <button type="submit" class="btn-primary" id="loginBtn">เข้าสู่ระบบ</button>
+            <button type="button" class="text-action" onclick="toggleResetForm()">ลืมรหัสผ่าน? ขอรีเซ็ตรหัสผ่าน</button>
+          </form>
+          <form id="resetPasswordForm" class="reset-panel" style="display:none;">
+            <h4 style="margin:0 0 8px;color:#285414;">ขอรีเซ็ตรหัสผ่าน</h4>
+            <p class="helper-text">กรอกรหัสพนักงานและชื่อเล่นเพื่อส่งคำขอให้ HR ตรวจสอบก่อนรีเซ็ตรหัสผ่าน เพื่อป้องกันบุคคลอื่นเปลี่ยนรหัสผ่านแทน</p>
+            <div class="form-group"><label>รหัสพนักงาน *</label><input type="text" id="resetEmpId" placeholder="เช่น ST68037" required></div>
+            <div class="form-group"><label>ชื่อเล่น *</label><input type="text" id="resetNickname" placeholder="ชื่อเล่นที่ลงทะเบียนไว้" required></div>
+            <button type="submit" class="btn-primary" id="resetBtn">ส่งคำขอรีเซ็ตรหัสผ่าน</button>
+            <button type="button" class="text-action" onclick="toggleResetForm(false)">กลับเข้าสู่ระบบ</button>
           </form>
 
           <!-- Form ลงทะเบียนครั้งแรก -->
@@ -136,7 +151,7 @@
             </div>
             <div class="form-group">
               <label>ตั้งรหัสผ่านใหม่ *</label>
-              <input type="password" id="regPassword" placeholder="อย่างน้อย 4 ตัวอักษร" required>
+              <div class="password-wrap"><input type="password" id="regPassword" placeholder="อย่างน้อย 4 ตัวอักษร" required autocomplete="new-password"><button class="password-toggle" type="button" onclick="togglePassword('regPassword',this)">แสดง</button></div>
             </div>
             <button type="submit" class="btn-primary" id="regBtn">ยืนยันลงทะเบียน</button>
           </form>
@@ -260,6 +275,24 @@
       document.querySelectorAll('.terms-content')[0].appendChild(template);
       document.querySelectorAll('.terms-content')[1].appendChild(template2);
     };
+
+    function togglePassword(inputId, button) {
+      const input = document.getElementById(inputId);
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      button.innerText = show ? 'ซ่อน' : 'แสดง';
+      button.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+    }
+
+    function toggleResetForm(show) {
+      const panel = document.getElementById('resetPasswordForm');
+      const shouldShow = typeof show === 'boolean' ? show : panel.style.display === 'none';
+      panel.style.display = shouldShow ? 'block' : 'none';
+      if (shouldShow) {
+        document.getElementById('resetEmpId').value = document.getElementById('loginEmpId').value.trim();
+        hideStatus();
+      } else { panel.reset(); }
+    }
 
     // สลับแท็บหน้า AUTH (ก่อนเข้าสู่ระบบ)
     function switchAuthTab(tabName) {
@@ -388,6 +421,28 @@
           btn.innerText = 'ยืนยันลงทะเบียน';
           showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
         });
+    });
+
+    document.getElementById('resetPasswordForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('resetBtn');
+      btn.disabled = true;
+      btn.innerText = 'กำลังส่งคำขอ...';
+      hideStatus();
+      try {
+        const res = await postWorkerRequest({
+          action: 'requestPasswordReset',
+          empId: document.getElementById('resetEmpId').value,
+          nickname: document.getElementById('resetNickname').value
+        });
+        showStatus(res.message || 'ส่งคำขอเรียบร้อยแล้ว', !!res.success);
+        if (res.success) this.reset();
+      } catch (err) {
+        showStatus('ส่งคำขอไม่สำเร็จ: ' + err.message, false);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'ส่งคำขอรีเซ็ตรหัสผ่าน';
+      }
     });
 
     // ลดขนาดภาพหลักฐานก่อนส่ง เพื่อไม่ให้ข้อมูลเกินขนาดแถวของ D1
