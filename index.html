@@ -379,53 +379,64 @@
         });
     });
 
+    // ลดขนาดภาพหลักฐานก่อนส่ง เพื่อไม่ให้ข้อมูลเกินขนาดแถวของ D1
+    function compressEvidenceImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์ภาพได้'));
+        reader.onload = () => {
+          const image = new Image();
+          image.onerror = () => reject(new Error('ไฟล์ภาพไม่ถูกต้อง'));
+          image.onload = () => {
+            const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+            if (dataUrl.length > 850000) return reject(new Error('รูปภาพมีขนาดใหญ่เกินไป กรุณาเลือกรูปที่เล็กลง'));
+            resolve(dataUrl);
+          };
+          image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
     // 3. บันทึกน้ำหนัก
-    document.getElementById('weightForm').addEventListener('submit', function(e) {
+    document.getElementById('weightForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       const btn = document.getElementById('submitWeightBtn');
-      const fileInput = document.getElementById('photoFile');
-      const file = fileInput.files[0];
-
-      if (!file) {
-        showStatus('กรุณาเลือกหรือถ่ายรูปภาพก่อนส่งข้อมูล', false);
-        return;
-      }
+      const file = document.getElementById('photoFile').files[0];
+      const weight = Number(document.getElementById('weight').value);
+      if (!file) return showStatus('กรุณาเลือกหรือถ่ายรูปภาพก่อนส่งข้อมูล', false);
+      if (!Number.isFinite(weight) || weight < 30 || weight > 200) return showStatus('กรุณากรอกน้ำหนักระหว่าง 30–200 กก.', false);
 
       btn.disabled = true;
-      btn.innerText = 'กำลังอัปโหลดข้อมูล...';
+      btn.innerText = 'กำลังประมวลผลและบันทึก...';
       hideStatus();
-
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const formObj = {
+      try {
+        const photoUrl = await compressEvidenceImage(file);
+        const res = await postWorkerRequest({
+          action: 'submitWeight',
           empId: currentUser.empId,
-          weight: document.getElementById('weight').value,
-          photoUrl: compressedImage,
-          fileName: `LOG_${currentUser.empId}_${Date.now()}.${file.name.split('.').pop()}`,
+          password: currentPassword,
+          weight,
+          photoUrl,
           note: document.getElementById('note').value
-        };
-
-        postWorkerRequest({ ...formObj, action: 'submitWeight' })
-          .then(function(res) {
-            btn.disabled = false;
-            btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
-            showStatus(res.message, res.success);
-            if (res.success) {
-              document.getElementById('weightForm').reset();
-              postWorkerRequest({ action: 'login', empId: currentUser.empId, password: currentPassword })
-                .then(renderDashboard)
-                .catch(function(err) {
-                  showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
-                });
-            }
-          })
-          .catch(function(err) {
-            btn.disabled = false;
-            btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
-            showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
-          });
-      };
-      reader.readAsDataURL(file);
+        });
+        showStatus(res.message || 'บันทึกข้อมูลเรียบร้อยแล้ว', !!res.success);
+        if (res.success) {
+          document.getElementById('weightForm').reset();
+          const refreshed = await postWorkerRequest({ action: 'login', empId: currentUser.empId, password: currentPassword });
+          if (refreshed.success) renderDashboard(refreshed);
+        }
+      } catch (err) {
+        showStatus('เกิดข้อผิดพลาด: ' + err.message, false);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'ส่งผลบันทึกน้ำหนัก';
+      }
     });
 
     function renderDashboard(res) {
