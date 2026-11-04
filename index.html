@@ -66,8 +66,17 @@
     .history-table th { background:#eaf1e3; color:#35452d; font-weight:600; }
     .history-table tr:last-child td { border-bottom:0; }
     .history-table a { color:#386a20; font-weight:600; }
-    footer { flex-shrink:0; margin-top:auto; padding:18px 14px; text-align:center; font-size:12px; color:#596253; }
-    footer a { color:#386a20; font-weight:600; text-decoration:none; }
+    body { padding-bottom:52px; }
+    footer {
+      position:fixed; left:0; right:0; bottom:0; z-index:50;
+      display:flex; align-items:center; justify-content:center;
+      padding:10px 14px; border-top:1px solid rgba(115,121,109,.22);
+      background:rgba(251,253,246,.80); color:#596253;
+      text-align:center; font-size:12px; line-height:1.6;
+      -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    }
+    footer a { color:#386a20; font-weight:600; text-decoration:none; transition:color .2s; }
+    footer a:hover { text-decoration:underline; }
     @media(max-width:700px) {
       .content { padding:12px 10px 70px; }
       .container { padding:20px 16px; border-radius:24px; }
@@ -233,7 +242,10 @@
 
     <!-- Footer ตรึงล่างตลอดเวลา -->
     <footer class="no-print">
-      &copy; 2026 STAR LIVE ONLINE · Healthy Weight, Healthy Life · ระบบดูแลสุขภาพพนักงาน
+      <div>
+        © 2026 Siam HRBP Soft · STAR LIVE ONLINE · Healthy Weight, Healthy Life · ระบบดูแลสุขภาพพนักงาน (V2.0) | ติดต่อผู้พัฒนา LINE ID:
+        <a href="https://line.me/ti/p/~dj_nodoubt" target="_blank" rel="noopener noreferrer">dj_nodoubt</a>
+      </div>
     </footer>
   </div>
 
