@@ -300,6 +300,8 @@
       document.getElementById('loginForm').style.display = 'none';
       document.getElementById('registerForm').style.display = 'none';
       document.getElementById('termsTabAuth').style.display = 'none';
+      const resetForm = document.getElementById('resetPasswordForm');
+      if (resetForm) resetForm.style.display = 'none';
       hideStatus();
 
       if (tabName === 'login') {
