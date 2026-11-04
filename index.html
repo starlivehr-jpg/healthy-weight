@@ -279,7 +279,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const result = await response.json();
+      const responseText = await response.text();
+      let result;
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        result = { message: responseText };
+      }
       if (!response.ok) {
         throw new Error(result.message || `HTTP ${response.status}`);
       }
