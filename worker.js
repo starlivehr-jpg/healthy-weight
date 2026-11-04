@@ -64,14 +64,21 @@ export default {
         const password = String(body.password || "");
         if (!empId || !nickname || password.length < 4 || password.length > 128)
           return json({success:false,message:"กรุณากรอกข้อมูลให้ครบ และตั้งรหัสผ่านอย่างน้อย 4 ตัวอักษร"},400,headers);
+        if (!/^[A-Z0-9-]{3,20}$/.test(empId))
+          return json({success:false,message:"รูปแบบรหัสพนักงานไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง"},400,headers);
         const user = await env.DB.prepare("SELECT emp_id,password FROM employees WHERE emp_id = ?").bind(empId).first();
-        if (!user) return json({success:false,message:"ไม่พบรหัสพนักงานในระบบ กรุณาติดต่อ HR"},200,headers);
-        if (user.password && user.password.trim() !== "")
-          return json({success:false,message:"รหัสพนักงานนี้เคยลงทะเบียนเปิดใช้งานแล้ว"},200,headers);
+        if (user?.password && user.password.trim() !== "")
+          return json({success:false,message:"รหัสพนักงานนี้มีบัญชีใช้งานแล้ว กรุณาเข้าสู่ระบบ"},200,headers);
         const passwordHash = await hashPassword(password);
-        await env.DB.prepare("UPDATE employees SET password = ?, nickname = ? WHERE emp_id = ?")
-          .bind(passwordHash,nickname,empId).run();
-        return json({success:true,message:"ลงทะเบียนสำเร็จ! กรุณาเข้าสู่ระบบ"},200,headers);
+        if (user) {
+          await env.DB.prepare("UPDATE employees SET password = ?, nickname = ? WHERE emp_id = ?")
+            .bind(passwordHash,nickname,empId).run();
+        } else {
+          // Self-service registration: create the employee profile immediately; no HR approval queue.
+          await env.DB.prepare("INSERT INTO employees (emp_id,password,nickname,name_th,department) VALUES (?,?,?,?,?)")
+            .bind(empId,passwordHash,nickname,nickname,"ไม่ระบุ").run();
+        }
+        return json({success:true,message:"ลงทะเบียนสำเร็จ! บัญชีพร้อมใช้งานแล้ว สามารถเข้าสู่ระบบได้ทันที"},200,headers);
       }
       if (action === "login") {
         const empId = String(body.empId || "").trim().toUpperCase();
