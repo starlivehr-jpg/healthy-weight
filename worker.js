@@ -58,6 +58,47 @@ export default {
       if (request.method !== "POST") return json({success:false,message:"Method not allowed"},405,headers);
       const body = await request.json();
       const action = String(body.action || "");
+      if (action === "adminLogin") {
+        const adminId = String(body.adminId || "").trim();
+        const password = String(body.password || "");
+        const admin = await env.DB.prepare("SELECT admin_id,password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
+        if (!admin || !(await verifyPassword(password,admin.password_hash)))
+          return json({success:false,message:"ชื่อผู้ใช้หรือรหัสผ่านผู้ดูแลไม่ถูกต้อง"},200,headers);
+        return json({success:true,admin:{adminId:admin.admin_id}},200,headers);
+      }
+      if (action === "adminGetResetRequests" || action === "adminGetOverview") {
+        const adminId = String(body.adminId || "").trim();
+        const password = String(body.password || "");
+        const admin = await env.DB.prepare("SELECT password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
+        if (!admin || !(await verifyPassword(password,admin.password_hash)))
+          return json({success:false,message:"ไม่มีสิทธิ์ผู้ดูแลระบบ"},401,headers);
+        const requests = await env.DB.prepare("SELECT r.request_id,r.emp_id,r.nickname,r.requested_at,r.status,e.department FROM password_reset_requests r LEFT JOIN employees e ON e.emp_id=r.emp_id ORDER BY CASE WHEN r.status='pending' THEN 0 ELSE 1 END,r.requested_at DESC LIMIT 200").all();
+        const counts = await env.DB.prepare("SELECT (SELECT COUNT(*) FROM employees) AS employees,(SELECT COUNT(*) FROM weight_logs) AS weight_logs,(SELECT COUNT(*) FROM password_reset_requests WHERE status='pending') AS pending_resets").first();
+        return json({success:true,requests:requests.results || [],counts},200,headers);
+      }
+      if (action === "adminResolveReset") {
+        const adminId = String(body.adminId || "").trim();
+        const password = String(body.password || "");
+        const requestId = String(body.requestId || "").trim();
+        const decision = String(body.decision || "");
+        const tempPassword = String(body.tempPassword || "");
+        const admin = await env.DB.prepare("SELECT password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
+        if (!admin || !(await verifyPassword(password,admin.password_hash)))
+          return json({success:false,message:"ไม่มีสิทธิ์ผู้ดูแลระบบ"},401,headers);
+        const request = await env.DB.prepare("SELECT request_id,emp_id,status FROM password_reset_requests WHERE request_id = ?").bind(requestId).first();
+        if (!request || request.status !== "pending")
+          return json({success:false,message:"ไม่พบคำขอที่รอดำเนินการ หรือคำขอนี้ถูกจัดการแล้ว"},404,headers);
+        if (decision === "reject") {
+          await env.DB.prepare("UPDATE password_reset_requests SET status='rejected' WHERE request_id=?").bind(requestId).run();
+          return json({success:true,message:"ปฏิเสธคำขอเรียบร้อยแล้ว"},200,headers);
+        }
+        if (decision !== "approve" || tempPassword.length < 8 || tempPassword.length > 128)
+          return json({success:false,message:"กรุณากำหนดรหัสผ่านชั่วคราวอย่างน้อย 8 ตัวอักษร"},400,headers);
+        const passwordHash = await hashPassword(tempPassword);
+        await env.DB.prepare("UPDATE employees SET password=? WHERE emp_id=?").bind(passwordHash,request.emp_id).run();
+        await env.DB.prepare("UPDATE password_reset_requests SET status='approved' WHERE request_id=?").bind(requestId).run();
+        return json({success:true,message:"รีเซ็ตรหัสผ่านและอนุมัติคำขอเรียบร้อยแล้ว กรุณาแจ้งรหัสผ่านชั่วคราวให้พนักงานผ่านช่องทางส่วนตัว"},200,headers);
+      }
       if (action === "register") {
         const empId = String(body.empId || "").trim().toUpperCase();
         const nickname = String(body.nickname || "").trim();
