@@ -212,7 +212,7 @@ export default {
         const photoUrl = String(body.photoUrl || "");
         const note = String(body.note || "").slice(0,1000);
         if (!empId || !password) return json({success:false,message:"กรุณาเข้าสู่ระบบใหม่ก่อนบันทึกข้อมูล"},401,headers);
-        if (!Number.isFinite(weightRaw) || weightRaw < 30 || weightRaw > 200 || !/^\\d+(?:\\.\\d{1,2})?$/.test(String(body.weight)))
+        if (!Number.isFinite(weightRaw) || weightRaw < 30 || weightRaw > 200 || !/^\d+(?:\.\d{1,2})?$/.test(String(body.weight)))
           return json({success:false,message:"น้ำหนักต้องอยู่ระหว่าง 30–200 กก."},400,headers);
         if (!/^data:image\/(jpeg|png|webp);base64,/.test(photoUrl) || photoUrl.length > 850000)
           return json({success:false,message:"กรุณาแนบรูปหลักฐานที่ถูกต้อง และมีขนาดไม่เกินกำหนด"},400,headers);
