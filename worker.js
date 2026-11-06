@@ -121,7 +121,8 @@ export default {
           const upgraded = await hashPassword(password);
           await env.DB.prepare("UPDATE employees SET password = ? WHERE emp_id = ?").bind(upgraded,empId).run();
         }
-        const logs = await env.DB.prepare("SELECT date,weight_kg,photo_url,note FROM weight_logs WHERE emp_id = ? ORDER BY date DESC, rowid DESC").bind(empId).all();
+        // ส่งข้อมูลประวัติโดยไม่แนบ Base64 ของรูปทั้งหมด เพื่อไม่ให้มือถือใช้หน่วยความจำมาก
+        const logs = await env.DB.prepare("SELECT log_id,date,weight_kg,note,CASE WHEN photo_url IS NOT NULL AND photo_url <> '' THEN 1 ELSE 0 END AS has_photo FROM weight_logs WHERE emp_id = ? ORDER BY date DESC, rowid DESC").bind(empId).all();
         const latestWeight = logs.results?.length ? logs.results[0].weight_kg : user.start_weight;
         const start = Number(user.start_weight);
         const latest = Number(latestWeight);
@@ -131,8 +132,21 @@ export default {
           user:{empId:user.emp_id,nickname:user.nickname,nameTh:user.name_th,department:user.department,height:user.height_cm,startWeight:user.start_weight ?? "-"},
           latestWeight:latestWeight ?? "-",
           weightLost,
-          logs:(logs.results || []).map(l=>({date:l.date,weight:l.weight_kg,photoUrl:l.photo_url,note:l.note}))
+          logs:(logs.results || []).map(l=>({logId:l.log_id,date:l.date,weight:l.weight_kg,photoAvailable:!!l.has_photo,note:l.note}))
         },200,headers);
+      }
+      if (action === "getWeightPhoto") {
+        const empId = String(body.empId || "").trim().toUpperCase();
+        const password = String(body.password || "");
+        const logId = String(body.logId || "").trim();
+        if (!empId || !password || !logId)
+          return json({success:false,message:"ข้อมูลคำขอรูปภาพไม่ครบถ้วน"},400,headers);
+        const user = await env.DB.prepare("SELECT password FROM employees WHERE emp_id = ?").bind(empId).first();
+        if (!user || !(await verifyPassword(password,user.password)))
+          return json({success:false,message:"กรุณาเข้าสู่ระบบใหม่ก่อนเปิดรูปหลักฐาน"},401,headers);
+        const photo = await env.DB.prepare("SELECT photo_url FROM weight_logs WHERE log_id = ? AND emp_id = ?").bind(logId,empId).first();
+        if (!photo?.photo_url) return json({success:false,message:"ไม่พบรูปหลักฐานรายการนี้"},404,headers);
+        return json({success:true,photoUrl:photo.photo_url},200,headers);
       }
       if (action === "submitWeight") {
         const empId = String(body.empId || "").trim().toUpperCase();
