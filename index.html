@@ -576,7 +576,7 @@
       currentWeightLogs = Array.isArray(res.logs) ? res.logs : [];
       if (currentWeightLogs.length > 0) {
         currentWeightLogs.forEach((log, index) => {
-          const photoLink = log.photoUrl
+          const photoLink = log.photoAvailable
             ? `<button type="button" class="photo-preview-btn" data-photo-index="${index}">ดูรูปหลักฐาน</button>`
             : '-';
           const row = document.createElement('tr');
@@ -594,16 +594,30 @@
       }
     }
 
-    function openEvidencePreview(index) {
+    async function openEvidencePreview(index) {
       const log = currentWeightLogs[index];
-      if (!log || !log.photoUrl) return;
+      if (!log || !log.photoAvailable || !log.logId) return;
       const modal = document.getElementById('photoPreviewModal');
       const image = document.getElementById('photoPreviewImage');
-      image.onerror = () => showStatus('ไม่สามารถแสดงรูปนี้ได้ รูปอาจเสียหายหรือข้อมูลไม่ครบ', false);
-      image.src = log.photoUrl;
+      image.removeAttribute('src');
+      image.alt = 'กำลังโหลดรูปหลักฐาน';
       modal.classList.add('open');
       document.body.style.overflow = 'hidden';
       document.getElementById('closePhotoPreview').focus();
+      try {
+        const result = await postWorkerRequest({
+          action: 'getWeightPhoto',
+          empId: currentUser.empId,
+          password: currentPassword,
+          logId: log.logId
+        });
+        if (!result.success || !result.photoUrl) throw new Error(result.message || 'ไม่พบรูปหลักฐาน');
+        image.alt = 'รูปหลักฐานการชั่งน้ำหนัก';
+        image.src = result.photoUrl;
+      } catch (error) {
+        closeEvidencePreview();
+        showStatus('เปิดรูปไม่สำเร็จ: ' + error.message, false);
+      }
     }
 
     function closeEvidencePreview() {
