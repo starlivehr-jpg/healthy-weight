@@ -90,23 +90,23 @@ export default {
         const password = String(body.password || "");
         const requestId = String(body.requestId || "").trim();
         const decision = String(body.decision || "");
-        const tempPassword = String(body.tempPassword || "");
         const admin = await env.DB.prepare("SELECT password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
         if (!admin || !(await verifyPassword(password,admin.password_hash)))
           return json({success:false,message:"ไม่มีสิทธิ์ผู้ดูแลระบบ"},401,headers);
-        const request = await env.DB.prepare("SELECT request_id,emp_id,status FROM password_reset_requests WHERE request_id = ?").bind(requestId).first();
+        const request = await env.DB.prepare("SELECT request_id,emp_id,status,requested_password_hash FROM password_reset_requests WHERE request_id = ?").bind(requestId).first();
         if (!request || request.status !== "pending")
           return json({success:false,message:"ไม่พบคำขอที่รอดำเนินการ หรือคำขอนี้ถูกจัดการแล้ว"},404,headers);
         if (decision === "reject") {
-          await env.DB.prepare("UPDATE password_reset_requests SET status='rejected' WHERE request_id=?").bind(requestId).run();
+          await env.DB.prepare("UPDATE password_reset_requests SET status='rejected',requested_password_hash=NULL WHERE request_id=?").bind(requestId).run();
           return json({success:true,message:"ปฏิเสธคำขอเรียบร้อยแล้ว"},200,headers);
         }
-        if (decision !== "approve" || tempPassword.length < 8 || tempPassword.length > 128)
-          return json({success:false,message:"กรุณากำหนดรหัสผ่านชั่วคราวอย่างน้อย 8 ตัวอักษร"},400,headers);
-        const passwordHash = await hashPassword(tempPassword);
-        await env.DB.prepare("UPDATE employees SET password=? WHERE emp_id=?").bind(passwordHash,request.emp_id).run();
-        await env.DB.prepare("UPDATE password_reset_requests SET status='approved' WHERE request_id=?").bind(requestId).run();
-        return json({success:true,message:"รีเซ็ตรหัสผ่านและอนุมัติคำขอเรียบร้อยแล้ว กรุณาแจ้งรหัสผ่านชั่วคราวให้พนักงานผ่านช่องทางส่วนตัว"},200,headers);
+        if (decision !== "approve")
+          return json({success:false,message:"คำสั่งไม่ถูกต้อง"},400,headers);
+        if (!request.requested_password_hash)
+          return json({success:false,message:"คำขอนี้เป็นรายการเดิมที่ยังไม่มีรหัสผ่านที่พนักงานกำหนด กรุณาให้พนักงานส่งคำขอใหม่"},400,headers);
+        await env.DB.prepare("UPDATE employees SET password=? WHERE emp_id=?").bind(request.requested_password_hash,request.emp_id).run();
+        await env.DB.prepare("UPDATE password_reset_requests SET status='approved',requested_password_hash=NULL WHERE request_id=?").bind(requestId).run();
+        return json({success:true,message:"อนุมัติเรียบร้อยแล้ว พนักงานสามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ที่ตนเองกำหนดไว้ได้ทันที"},200,headers);
       }
       if (action === "register") {
         const empId = String(body.empId || "").trim().toUpperCase();
@@ -144,21 +144,27 @@ export default {
       if (action === "requestPasswordReset") {
         const empId = String(body.empId || "").trim().toUpperCase();
         const nickname = String(body.nickname || "").trim();
-        if (!empId || !nickname)
-          return json({success:false,message:"กรุณากรอกรหัสพนักงานและชื่อเล่น"},400,headers);
+        const newPassword = String(body.newPassword || "");
+        const confirmPassword = String(body.confirmPassword || "");
+        if (!empId || !nickname || !newPassword || !confirmPassword)
+          return json({success:false,message:"กรุณากรอกข้อมูลและกำหนดรหัสผ่านใหม่ให้ครบถ้วน"},400,headers);
+        if (newPassword.length < 4 || newPassword.length > 128)
+          return json({success:false,message:"รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร"},400,headers);
+        if (newPassword !== confirmPassword)
+          return json({success:false,message:"รหัสผ่านใหม่และการยืนยันไม่ตรงกัน"},400,headers);
         if (!/^[A-Z0-9-]{3,20}$/.test(empId))
           return json({success:false,message:"รูปแบบรหัสพนักงานไม่ถูกต้อง"},400,headers);
         const user = await env.DB.prepare("SELECT emp_id,nickname,name_th FROM employees WHERE emp_id = ?").bind(empId).first();
-        // Use a generic response to avoid revealing whether an employee ID exists.
         if (user && [user.nickname,user.name_th].filter(Boolean).some(v => String(v).trim().toLocaleLowerCase("th") === nickname.toLocaleLowerCase("th"))) {
           const pending = await env.DB.prepare("SELECT request_id FROM password_reset_requests WHERE emp_id = ? AND status = 'pending' LIMIT 1").bind(empId).first();
           if (!pending) {
             const requestId = "RST" + crypto.randomUUID().replace(/-/g,"");
-            await env.DB.prepare("INSERT INTO password_reset_requests (request_id,emp_id,nickname,requested_at,status) VALUES (?,?,?,?,?)")
-              .bind(requestId,empId,nickname,new Date().toISOString(),"pending").run();
+            const requestedHash = await hashPassword(newPassword);
+            await env.DB.prepare("INSERT INTO password_reset_requests (request_id,emp_id,nickname,requested_at,status,requested_password_hash) VALUES (?,?,?,?,?,?)")
+              .bind(requestId,empId,nickname,new Date().toISOString(),"pending",requestedHash).run();
           }
         }
-        return json({success:true,message:"รับคำขอแล้ว หากข้อมูลตรงกับทะเบียนพนักงาน HR จะตรวจสอบและดำเนินการรีเซ็ตรหัสผ่านให้ กรุณาติดต่อ HR หากต้องการเร่งด่วน"},200,headers);
+        return json({success:true,message:"ส่งคำขอพร้อมรหัสผ่านใหม่ที่คุณกำหนดแล้ว รอเจ้าของโครงการอนุมัติ เมื่ออนุมัติจะใช้รหัสผ่านนี้ได้ทันที"},200,headers);
       }
       if (action === "login") {
         const empId = String(body.empId || "").trim().toUpperCase();
@@ -201,11 +207,12 @@ export default {
       if (action === "submitWeight") {
         const empId = String(body.empId || "").trim().toUpperCase();
         const password = String(body.password || "");
-        const weight = Number(body.weight);
+        const weightRaw = Number(body.weight);
+        const weight = Math.round((weightRaw + Number.EPSILON) * 100) / 100;
         const photoUrl = String(body.photoUrl || "");
         const note = String(body.note || "").slice(0,1000);
         if (!empId || !password) return json({success:false,message:"กรุณาเข้าสู่ระบบใหม่ก่อนบันทึกข้อมูล"},401,headers);
-        if (!Number.isFinite(weight) || weight < 30 || weight > 200)
+        if (!Number.isFinite(weightRaw) || weightRaw < 30 || weightRaw > 200 || !/^\\d+(?:\\.\\d{1,2})?$/.test(String(body.weight)))
           return json({success:false,message:"น้ำหนักต้องอยู่ระหว่าง 30–200 กก."},400,headers);
         if (!/^data:image\/(jpeg|png|webp);base64,/.test(photoUrl) || photoUrl.length > 850000)
           return json({success:false,message:"กรุณาแนบรูปหลักฐานที่ถูกต้อง และมีขนาดไม่เกินกำหนด"},400,headers);
