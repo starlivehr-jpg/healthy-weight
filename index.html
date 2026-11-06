@@ -99,6 +99,17 @@
     }
     @media(max-width:380px) { .tab-btn { font-size:11px; } .container { padding:16px 12px; } }
     @media print { .no-print { display:none!important; } body { background:white; } .container { box-shadow:none; } }
+  
+    /* เปิดรูปหลักฐานภายในหน้าเว็บ ไม่ส่งผู้ใช้ไปแท็บหรือแอปอื่น */
+    .photo-preview-btn { border:0; background:transparent; color:#386a20; font:inherit; font-weight:700; text-decoration:underline; cursor:pointer; padding:6px 8px; }
+    .photo-modal { display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; padding:18px; background:rgba(15,22,13,.78); }
+    .photo-modal.open { display:flex; }
+    .photo-modal-panel { width:min(760px, 100%); max-height:90vh; overflow:auto; padding:16px; border-radius:20px; background:#fbfdf6; box-shadow:0 18px 60px rgba(0,0,0,.3); }
+    .photo-modal img { display:block; width:100%; height:auto; max-height:72vh; object-fit:contain; border-radius:12px; background:#edf1e8; }
+    .photo-modal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; color:#254d18; font-weight:700; }
+    .photo-modal-close { border:0; border-radius:999px; padding:9px 14px; background:#e8efdf; color:#254d18; font:inherit; cursor:pointer; }
+    @media print { .photo-modal { display:none!important; } }
+
   </style>
 </head>
 <body>
@@ -274,6 +285,16 @@
       </div>
     </template>
 
+    <div id="photoPreviewModal" class="photo-modal" role="dialog" aria-modal="true" aria-label="รูปหลักฐาน">
+      <div class="photo-modal-panel">
+        <div class="photo-modal-head">
+          <span>📷 รูปหลักฐานการชั่งน้ำหนัก</span>
+          <button type="button" id="closePhotoPreview" class="photo-modal-close">ปิด ✕</button>
+        </div>
+        <img id="photoPreviewImage" alt="รูปหลักฐานการชั่งน้ำหนัก">
+      </div>
+    </div>
+
     <!-- Footer ตรึงล่างตลอดเวลา -->
     <footer class="no-print">
       <div>
@@ -286,6 +307,7 @@
   <script>
     let currentUser = null;
     let currentPassword = '';
+    let currentWeightLogs = [];
 
     // โหลดเงื่อนไขโครงการใส่กล่องแสดงผลเมื่อเปิดหน้าเว็บ
     window.onload = function() {
@@ -551,22 +573,58 @@
 
       const tbody = document.getElementById('historyBody');
       tbody.innerHTML = '';
-      if (res.logs && res.logs.length > 0) {
-        res.logs.forEach(log => {
-          const photoLink = log.photoUrl ? `<a href="${log.photoUrl}" target="_blank">ดูรูปหลักฐาน</a>` : '-';
-          tbody.innerHTML += `
-            <tr>
-              <td>${log.date}</td>
-              <td><strong>${log.weight} กก.</strong></td>
-              <td>${photoLink}</td>
-              <td>${log.note || '-'}</td>
-            </tr>
+      currentWeightLogs = Array.isArray(res.logs) ? res.logs : [];
+      if (currentWeightLogs.length > 0) {
+        currentWeightLogs.forEach((log, index) => {
+          const photoLink = log.photoUrl
+            ? `<button type="button" class="photo-preview-btn" data-photo-index="${index}">ดูรูปหลักฐาน</button>`
+            : '-';
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${log.date || '-'}</td>
+            <td><strong>${log.weight ?? '-'} กก.</strong></td>
+            <td>${photoLink}</td>
+            <td></td>
           `;
+          row.lastElementChild.textContent = log.note || '-';
+          tbody.appendChild(row);
         });
       } else {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#999;">ยังไม่มีประวัติการบันทึก</td></tr>';
       }
     }
+
+    function openEvidencePreview(index) {
+      const log = currentWeightLogs[index];
+      if (!log || !log.photoUrl) return;
+      const modal = document.getElementById('photoPreviewModal');
+      const image = document.getElementById('photoPreviewImage');
+      image.onerror = () => showStatus('ไม่สามารถแสดงรูปนี้ได้ รูปอาจเสียหายหรือข้อมูลไม่ครบ', false);
+      image.src = log.photoUrl;
+      modal.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      document.getElementById('closePhotoPreview').focus();
+    }
+
+    function closeEvidencePreview() {
+      const modal = document.getElementById('photoPreviewModal');
+      const image = document.getElementById('photoPreviewImage');
+      modal.classList.remove('open');
+      image.removeAttribute('src');
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('historyBody').addEventListener('click', function(event) {
+      const button = event.target.closest('[data-photo-index]');
+      if (button) openEvidencePreview(Number(button.dataset.photoIndex));
+    });
+    document.getElementById('closePhotoPreview').addEventListener('click', closeEvidencePreview);
+    document.getElementById('photoPreviewModal').addEventListener('click', function(event) {
+      if (event.target === this) closeEvidencePreview();
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') closeEvidencePreview();
+    });
 
     function logout() {
       currentUser = null;
