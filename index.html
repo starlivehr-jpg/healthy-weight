@@ -553,7 +553,7 @@
       const file = document.getElementById('photoFile').files[0];
       const weight = Number(Number(document.getElementById('weight').value).toFixed(2));
       if (!file) return showStatus('กรุณาเลือกหรือถ่ายรูปภาพก่อนส่งข้อมูล', false);
-      if (!Number.isFinite(weight) || weight < 30 || weight > 200 || !/^\\d+(?:\\.\\d{1,2})?$/.test(document.getElementById('weight').value)) return showStatus('กรุณากรอกน้ำหนักระหว่าง 30–200 กก.', false);
+      if (!Number.isFinite(weight) || weight < 30 || weight > 200 || !/^\d+(?:\.\d{1,2})?$/.test(document.getElementById('weight').value)) return showStatus('กรุณากรอกน้ำหนักระหว่าง 30–200 กก.', false);
 
       btn.disabled = true;
       btn.innerText = 'กำลังประมวลผลและบันทึก...';
