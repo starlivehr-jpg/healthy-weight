@@ -146,6 +146,8 @@
             <p class="helper-text">กรอกรหัสพนักงานและชื่อเล่นเพื่อส่งคำขอให้ HR ตรวจสอบก่อนรีเซ็ตรหัสผ่าน เพื่อป้องกันบุคคลอื่นเปลี่ยนรหัสผ่านแทน</p>
             <div class="form-group"><label>รหัสพนักงาน *</label><input type="text" id="resetEmpId" placeholder="เช่น ST68037" required></div>
             <div class="form-group"><label>ชื่อเล่น *</label><input type="text" id="resetNickname" placeholder="ชื่อเล่นที่ลงทะเบียนไว้" required></div>
+            <div class="form-group"><label>กำหนดรหัสผ่านใหม่ *</label><div class="password-wrap"><input type="password" id="resetNewPassword" minlength="4" placeholder="อย่างน้อย 4 ตัวอักษร" required autocomplete="new-password"><button class="password-toggle" type="button" onclick="togglePassword('resetNewPassword',this)">แสดง</button></div></div>
+            <div class="form-group"><label>ยืนยันรหัสผ่านใหม่ *</label><div class="password-wrap"><input type="password" id="resetConfirmPassword" minlength="4" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง" required autocomplete="new-password"></div></div>
             <button type="submit" class="btn-primary" id="resetBtn">ส่งคำขอรีเซ็ตรหัสผ่าน</button>
             <button type="button" class="text-action" onclick="toggleResetForm(false)">กลับเข้าสู่ระบบ</button>
           </form>
@@ -228,7 +230,7 @@
               <h4 style="margin: 0 0 10px 0; color: #2e7d32;">⚖️ บันทึกน้ำหนักสัปดาห์นี้</h4>
               <div class="form-group">
                 <label>น้ำหนักปัจจุบัน (กก.) *</label>
-                <input type="number" id="weight" step="0.1" min="30" max="200" placeholder="เช่น 65.5" required>
+                <input type="number" id="weight" step="0.01" min="30" max="200" placeholder="เช่น 65.5" required>
               </div>
               <div class="form-group">
                 <label>ถ่ายรูป/แนบรูปหน้าจอเครื่องชั่ง *</label>
@@ -480,7 +482,9 @@
         const res = await postWorkerRequest({
           action: 'requestPasswordReset',
           empId: document.getElementById('resetEmpId').value,
-          nickname: document.getElementById('resetNickname').value
+          nickname: document.getElementById('resetNickname').value,
+          newPassword: document.getElementById('resetNewPassword').value,
+          confirmPassword: document.getElementById('resetConfirmPassword').value
         });
         showStatus(res.message || 'ส่งคำขอเรียบร้อยแล้ว', !!res.success);
         if (res.success) this.reset();
@@ -521,9 +525,9 @@
       e.preventDefault();
       const btn = document.getElementById('submitWeightBtn');
       const file = document.getElementById('photoFile').files[0];
-      const weight = Number(document.getElementById('weight').value);
+      const weight = Number(Number(document.getElementById('weight').value).toFixed(2));
       if (!file) return showStatus('กรุณาเลือกหรือถ่ายรูปภาพก่อนส่งข้อมูล', false);
-      if (!Number.isFinite(weight) || weight < 30 || weight > 200) return showStatus('กรุณากรอกน้ำหนักระหว่าง 30–200 กก.', false);
+      if (!Number.isFinite(weight) || weight < 30 || weight > 200 || !/^\\d+(?:\\.\\d{1,2})?$/.test(document.getElementById('weight').value)) return showStatus('กรุณากรอกน้ำหนักระหว่าง 30–200 กก.', false);
 
       btn.disabled = true;
       btn.innerText = 'กำลังประมวลผลและบันทึก...';
