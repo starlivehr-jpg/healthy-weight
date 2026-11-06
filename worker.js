@@ -65,8 +65,8 @@ export default {
         let admin = await env.DB.prepare("SELECT admin_id,password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
         // First owner sign-in provisions the initial owner record from a salted PBKDF2 hash.
         if (!admin && adminId === "Admin") {
-          const initialHash = "pbkdf2$100000$1754903967b65d6ebd826ee8ac766dee$71e51e5becf754b78c718ff51387b78c47de069402aec4d82f877f5fc84cbdff";
-          if (await verifyPassword(password, initialHash)) {
+          const initialHash = env.OWNER_ADMIN_HASH;
+          if (initialHash && await verifyPassword(password, initialHash)) {
             await env.DB.prepare("INSERT OR IGNORE INTO admins (admin_id,password_hash,active,created_at) VALUES (?,?,1,?)").bind("Admin",initialHash,new Date().toISOString()).run();
             admin = await env.DB.prepare("SELECT admin_id,password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
           }
