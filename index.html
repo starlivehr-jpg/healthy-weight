@@ -312,11 +312,32 @@
     let currentWeightLogs = [];
 
     // โหลดเงื่อนไขโครงการใส่กล่องแสดงผลเมื่อเปิดหน้าเว็บ
-    window.onload = function() {
+    window.onload = async function() {
       const template = document.getElementById('termsTemplate').content.cloneNode(true);
       const template2 = document.getElementById('termsTemplate').content.cloneNode(true);
       document.querySelectorAll('.terms-content')[0].appendChild(template);
       document.querySelectorAll('.terms-content')[1].appendChild(template2);
+
+      // Restore login for this browser tab after refresh; credentials are cleared on logout/tab close.
+      const savedSession = sessionStorage.getItem('healthyWeightSession');
+      if (savedSession) {
+        try {
+          const session = JSON.parse(savedSession);
+          if (!session.empId || !session.password) throw new Error('ข้อมูลเซสชันไม่ครบ');
+          const result = await postWorkerRequest({ action: 'login', empId: session.empId, password: session.password });
+          if (result.success) {
+            currentUser = result.user;
+            currentPassword = session.password;
+            renderDashboard(result);
+            return;
+          }
+          sessionStorage.removeItem('healthyWeightSession');
+          showStatus('เซสชันหมดอายุหรือรหัสผ่านมีการเปลี่ยนแปลง กรุณาเข้าสู่ระบบอีกครั้ง', false);
+        } catch (error) {
+          sessionStorage.removeItem('healthyWeightSession');
+          showStatus('ไม่สามารถกู้คืนการเข้าสู่ระบบได้ กรุณาเข้าสู่ระบบอีกครั้ง', false);
+        }
+      }
     };
 
     function togglePassword(inputId, button) {
@@ -425,6 +446,11 @@
           if (res.success) {
             currentUser = res.user;
             currentPassword = pass;
+            try {
+              sessionStorage.setItem('healthyWeightSession', JSON.stringify({ empId: res.user.empId, password: pass }));
+            } catch (storageError) {
+              console.warn('ไม่สามารถบันทึกเซสชันในแท็บนี้ได้', storageError);
+            }
             renderDashboard(res);
           } else {
             showStatus(res.message, false);
@@ -645,6 +671,7 @@
     });
 
     function logout() {
+      sessionStorage.removeItem('healthyWeightSession');
       currentUser = null;
       currentPassword = '';
       document.getElementById('mainDashboard').style.display = 'none';
