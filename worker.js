@@ -61,7 +61,16 @@ export default {
       if (action === "adminLogin") {
         const adminId = String(body.adminId || "").trim();
         const password = String(body.password || "");
-        const admin = await env.DB.prepare("SELECT admin_id,password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
+        await env.DB.prepare("CREATE TABLE IF NOT EXISTS admins (admin_id TEXT PRIMARY KEY, password_hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)").run();
+        let admin = await env.DB.prepare("SELECT admin_id,password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
+        // First owner sign-in provisions the initial owner record from a salted PBKDF2 hash.
+        if (!admin && adminId === "Admin") {
+          const initialHash = "pbkdf2$100000$1754903967b65d6ebd826ee8ac766dee$71e51e5becf754b78c718ff51387b78c47de069402aec4d82f877f5fc84cbdff";
+          if (await verifyPassword(password, initialHash)) {
+            await env.DB.prepare("INSERT OR IGNORE INTO admins (admin_id,password_hash,active,created_at) VALUES (?,?,1,?)").bind("Admin",initialHash,new Date().toISOString()).run();
+            admin = await env.DB.prepare("SELECT admin_id,password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
+          }
+        }
         if (!admin || !(await verifyPassword(password,admin.password_hash)))
           return json({success:false,message:"ชื่อผู้ใช้หรือรหัสผ่านผู้ดูแลไม่ถูกต้อง"},200,headers);
         return json({success:true,admin:{adminId:admin.admin_id}},200,headers);
