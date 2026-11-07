@@ -85,6 +85,27 @@ export default {
         const counts = await env.DB.prepare("SELECT (SELECT COUNT(*) FROM employees) AS employees,(SELECT COUNT(*) FROM weight_logs) AS weight_logs,(SELECT COUNT(*) FROM password_reset_requests WHERE status='pending') AS pending_resets").first();
         return json({success:true,requests:requests.results || [],counts},200,headers);
       }
+      if (action === "adminGetData") {
+        const adminId = String(body.adminId || "").trim();
+        const password = String(body.password || "");
+        const admin = await env.DB.prepare("SELECT password_hash FROM admins WHERE admin_id = ? AND active = 1").bind(adminId).first();
+        if (!admin || !(await verifyPassword(password,admin.password_hash)))
+          return json({success:false,message:"ไม่มีสิทธิ์ผู้ดูแลระบบ"},401,headers);
+        const employees = await env.DB.prepare(`
+          SELECT e.emp_id,e.nickname,e.name_th,e.department,e.height_cm,e.start_weight,e.target_weight_kg,
+            (SELECT w.weight_kg FROM weight_logs w WHERE w.emp_id=e.emp_id ORDER BY w.date DESC,w.rowid DESC LIMIT 1) AS latest_weight,
+            (SELECT w.date FROM weight_logs w WHERE w.emp_id=e.emp_id ORDER BY w.date DESC,w.rowid DESC LIMIT 1) AS latest_date,
+            (SELECT COUNT(*) FROM weight_logs w WHERE w.emp_id=e.emp_id) AS log_count
+          FROM employees e ORDER BY e.department,e.emp_id LIMIT 2000
+        `).all();
+        const logs = await env.DB.prepare(`
+          SELECT w.log_id,w.date,w.emp_id,e.nickname,e.department,w.weight_kg,w.note,
+            CASE WHEN w.photo_url IS NOT NULL AND w.photo_url <> '' THEN 1 ELSE 0 END AS has_photo
+          FROM weight_logs w LEFT JOIN employees e ON e.emp_id=w.emp_id
+          ORDER BY w.date DESC,w.rowid DESC LIMIT 5000
+        `).all();
+        return json({success:true,employees:employees.results || [],logs:logs.results || []},200,headers);
+      }
       if (action === "adminResolveReset") {
         const adminId = String(body.adminId || "").trim();
         const password = String(body.password || "");
