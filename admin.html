@@ -44,7 +44,7 @@ const API='https://spring-shadow-65fe.starlivehr.workers.dev/api';let adminId=''
 
 async function api(data){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const x=await r.json();if(!r.ok)throw new Error(x.message||'HTTP '+r.status);return x}
 function message(el,msg,error=false){el.innerHTML='<div class="status '+(error?'err':'')+'"></div>';el.firstChild.textContent=msg}
-document.getElementById('loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=document.getElementById('loginBtn'),s=document.getElementById('loginStatus');adminId=document.getElementById('adminId').value.trim();adminPassword=document.getElementById('adminPassword').value;b.disabled=true;b.textContent='กำลังตรวจสอบ...';try{const r=await api({action:'adminLogin',adminId,password:adminPassword});if(!r.success)throw new Error(r.message||'เข้าสู่ระบบไม่สำเร็จ');document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');await load();await loadData()}catch(err){message(s,err.message,true)}finally{b.disabled=false;b.textContent='เข้าสู่ระบบผู้ดูแล'}});
+document.getElementById('loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=document.getElementById('loginBtn'),s=document.getElementById('loginStatus');adminId=document.getElementById('adminId').value.trim();adminPassword=document.getElementById('adminPassword').value;b.disabled=true;b.textContent='กำลังตรวจสอบ...';try{const r=await api({action:'adminLogin',adminId,password:adminPassword});if(!r.success)throw new Error(r.message||'เข้าสู่ระบบไม่สำเร็จ');sessionStorage.setItem('healthyWeightAdminSession',JSON.stringify({adminId,adminPassword}));document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');await load();await loadData()}catch(err){message(s,err.message,true)}finally{b.disabled=false;b.textContent='เข้าสู่ระบบผู้ดูแล'}});
 function csvEscape(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
 function downloadCSV(filename,headers,rows){const csv='\\uFEFF'+[headers,...rows].map(r=>r.map(csvEscape).join(',')).join('\\r\\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url)}
 function displayWeight(v){return v===null||v===undefined||v===''?'-':Number(v).toFixed(2)}
@@ -59,5 +59,27 @@ document.getElementById('employeeRefresh').onclick=async()=>{try{await loadData(
 document.getElementById('logRefresh').onclick=async()=>{try{await loadData()}catch(e){message(document.getElementById('appStatus'),e.message,true)}};
 document.getElementById('exportEmployees').onclick=()=>downloadCSV('healthy-weight-employees.csv',['รหัสพนักงาน','ชื่อเล่น','แผนก','ส่วนสูง','น้ำหนักเริ่มต้น','น้ำหนักเป้าหมาย','น้ำหนักล่าสุด','เปลี่ยนแปลง','วันที่บันทึกล่าสุด','จำนวนครั้ง'],employeeData.map(e=>[e.emp_id,e.nickname||e.name_th,e.department,e.height_cm,e.start_weight,e.target_weight_kg,e.latest_weight,Number(e.latest_weight??e.start_weight)-Number(e.start_weight),e.latest_date,e.log_count]));
 document.getElementById('exportLogs').onclick=()=>downloadCSV('healthy-weight-logs.csv',['วันที่','รหัสพนักงาน','ชื่อเล่น','แผนก','น้ำหนัก','หมายเหตุ','แนบรูป'],logData.map(l=>[l.date,l.emp_id,l.nickname,l.department,l.weight_kg,l.note,Number(l.has_photo)?'มี':'ไม่มี']));
-document.getElementById('refreshBtn').onclick=load;document.getElementById('overviewRefresh').onclick=load;document.getElementById('logoutBtn').onclick=()=>{employeeData=[];logData=[];adminPassword='';adminId='';document.getElementById('app').classList.add('hidden');document.getElementById('login').classList.remove('hidden');document.getElementById('loginForm').reset();document.getElementById('adminId').value='Admin';document.getElementById('loginStatus').innerHTML=''};
+document.getElementById('refreshBtn').onclick=load;document.getElementById('overviewRefresh').onclick=load;document.getElementById('logoutBtn').onclick=()=>{sessionStorage.removeItem('healthyWeightAdminSession');employeeData=[];logData=[];adminPassword='';adminId='';document.getElementById('app').classList.add('hidden');document.getElementById('login').classList.remove('hidden');document.getElementById('loginForm').reset();document.getElementById('adminId').value='Admin';document.getElementById('loginStatus').innerHTML=''};
+
+async function restoreAdminSession(){
+  const saved=sessionStorage.getItem('healthyWeightAdminSession');
+  if(!saved)return;
+  try{
+    const session=JSON.parse(saved);
+    if(!session.adminId||!session.adminPassword)throw new Error('ข้อมูลเซสชันไม่ครบ');
+    adminId=session.adminId;adminPassword=session.adminPassword;
+    const check=await api({action:'adminLogin',adminId,password:adminPassword});
+    if(!check.success)throw new Error('เซสชันหมดอายุ');
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    await load();await loadData();
+  }catch(err){
+    sessionStorage.removeItem('healthyWeightAdminSession');
+    adminId='';adminPassword='';
+    document.getElementById('login').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+    message(document.getElementById('loginStatus'),'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',true);
+  }
+}
+restoreAdminSession();
 </script></body></html>
